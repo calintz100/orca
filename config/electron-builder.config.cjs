@@ -982,3 +982,18 @@ function findInstalledMacSigningIdentity(keychainFile) {
   } catch {}
   return null
 }
+
+// Orca Flow: a personal build that installs beside the official Orca (own app id, name,
+// install folder, protocol and userData) and points publishing at the fork. The packaged
+// package.json carries `orcaFlavor: "flow"`, which main reads to pick its profile and to skip
+// the official auto-update feed (src/main/startup/orca-flow-build.ts).
+if (process.env.ORCA_FLOW_BUILD === '1') {
+  const config = module.exports
+  config.appId = 'com.calintz.orcaflow'
+  config.productName = 'Orca Flow'
+  config.protocols = [{ name: 'Orca Flow', schemes: ['orca-flow'] }]
+  config.extraMetadata = { ...(config.extraMetadata ?? {}), orcaFlavor: 'flow' }
+  config.win = { ...config.win, executableName: 'OrcaFlow' }
+  config.nsis = { ...config.nsis, artifactName: 'orca-flow-windows-setup.${ext}' }
+  config.publish = { provider: 'github', owner: 'calintz100', repo: 'orca', releaseType: 'draft' }
+}

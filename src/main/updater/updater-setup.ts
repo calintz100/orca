@@ -1,4 +1,5 @@
 import { app, powerMonitor } from 'electron'
+import { isOrcaFlowBuild } from '../startup/orca-flow-build'
 import type { BrowserWindow } from 'electron'
 import type { ReleaseBuild, ReleaseChannel } from '../../shared/release-channel'
 import type { ReleaseBuildListOptions } from '../updater-release-build-cache'
@@ -136,7 +137,8 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
       this.sendErrorStatus(`The server update did not complete: ${serveHandoffFailure}`, true)
     }
 
-    if (!app.isPackaged) {
+    // Why Orca Flow opts out: its feed is the official Orca release, which would replace this build.
+    if (!app.isPackaged || isOrcaFlowBuild()) {
       return
     }
 

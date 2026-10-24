@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { isOrcaFlowBuild, ORCA_FLOW_APP_NAME, ORCA_FLOW_APP_USER_MODEL_ID } from './orca-flow-build'
 import path from 'node:path'
 import type { AppIdentity } from '../../shared/app-identity'
 
@@ -66,6 +67,20 @@ export function getDevInstanceIdentity(
   env: NodeJS.ProcessEnv = process.env
 ): DevInstanceIdentity {
   if (!isDev) {
+    // Packaged Orca Flow (personal build) shows its own name and Windows app id.
+    if (isOrcaFlowBuild()) {
+      return {
+        name: ORCA_FLOW_APP_NAME,
+        appName: ORCA_FLOW_APP_NAME,
+        isDev: false,
+        devLabel: null,
+        devBranch: null,
+        devWorktreeName: null,
+        devRepoRoot: null,
+        dockBadgeLabel: null,
+        appUserModelId: ORCA_FLOW_APP_USER_MODEL_ID
+      }
+    }
     return {
       name: BASE_APP_NAME,
       appName: BASE_APP_NAME,

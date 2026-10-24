@@ -5,6 +5,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { getVersionManagerBinPaths } from '../codex-cli/command'
 import { getMainE2EConfig } from '../e2e-config'
+import { isOrcaFlowBuild, ORCA_FLOW_USER_DATA_DIR_NAME } from './orca-flow-build'
 import { DISABLED_CHROMIUM_FEATURES } from './disabled-chromium-features'
 import { readHttp1CompatibilityMarker } from './http1-compatibility-marker'
 import { checkServeUserDataPath } from './serve-user-data-path-guard'
@@ -213,6 +214,10 @@ export function configureDevUserDataPath(isDev: boolean): void {
   }
 
   if (!isDev) {
+    // Orca Flow keeps its own profile so it never shares state with an official Orca install.
+    if (isOrcaFlowBuild()) {
+      app.setPath('userData', join(app.getPath('appData'), ORCA_FLOW_USER_DATA_DIR_NAME))
+    }
     return
   }
   const overrideUserDataPath = process.env.ORCA_DEV_USER_DATA_PATH
