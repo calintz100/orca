@@ -18518,6 +18518,11 @@
           "copyMarkdown": "마크다운으로 복사",
           "loading": "불러오는 중…",
           "empty": "이 날짜에 기록된 에이전트 작업이 없습니다."
+        },
+        "FlowPaneCard": {
+          "toggle": "단계와 질문 기록 보기",
+          "focus": "이 터미널로 이동",
+          "prevQuestion": "전 질문"
         }
       }
     },

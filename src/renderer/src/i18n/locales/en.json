@@ -18800,6 +18800,11 @@
           "copyMarkdown": "Copy as Markdown",
           "loading": "Loading…",
           "empty": "No agent work recorded for this day."
+        },
+        "FlowPaneCard": {
+          "toggle": "Show steps and history",
+          "focus": "Go to this terminal",
+          "prevQuestion": "Previous question"
         }
       }
     },

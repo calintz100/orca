@@ -1,26 +1,47 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { FlowPaneSummary, FlowTurn } from '../../../../shared/flow-log-types'
+
+// One shared copy of the pane summaries for every bar, card and board on screen: a single IPC
+// load plus one change subscription, instead of one per pane.
+const EMPTY = new Map<string, FlowPaneSummary>()
+let summaries: Map<string, FlowPaneSummary> = EMPTY
+const listeners = new Set<() => void>()
+let unsubscribeMain: (() => void) | null = null
+
+function loadSummaries(): void {
+  void window.api.flowLog.getPanes().then((list) => {
+    summaries = new Map(list.map((p) => [p.paneKey, p]))
+    for (const listener of listeners) {
+      listener()
+    }
+  })
+}
+
+function subscribeSummaries(listener: () => void): () => void {
+  listeners.add(listener)
+  if (!unsubscribeMain) {
+    unsubscribeMain = window.api.flowLog.onChanged(loadSummaries)
+    loadSummaries()
+  }
+  return () => {
+    listeners.delete(listener)
+    if (listeners.size === 0 && unsubscribeMain) {
+      unsubscribeMain()
+      unsubscribeMain = null
+    }
+  }
+}
 
 /** All pane summaries; refreshes whenever main reports a change. */
 export function useFlowPaneSummaries(): Map<string, FlowPaneSummary> {
-  const [panes, setPanes] = useState<Map<string, FlowPaneSummary>>(new Map())
-  useEffect(() => {
-    let alive = true
-    const load = (): void => {
-      void window.api.flowLog.getPanes().then((list) => {
-        if (alive) {
-          setPanes(new Map(list.map((p) => [p.paneKey, p])))
-        }
-      })
-    }
-    load()
-    const off = window.api.flowLog.onChanged(load)
-    return () => {
-      alive = false
-      off()
-    }
-  }, [])
-  return panes
+  return useSyncExternalStore(subscribeSummaries, () => summaries)
+}
+
+/** One pane's running summary (title, steps, last question → result). */
+export function useFlowPaneSummary(paneKey: string | null): FlowPaneSummary | undefined {
+  return useSyncExternalStore(subscribeSummaries, () =>
+    paneKey ? summaries.get(paneKey) : undefined
+  )
 }
 
 /** Recent finished turns of one pane (oldest first), refreshed on change. */
