@@ -18523,6 +18523,10 @@
           "toggle": "단계와 질문 기록 보기",
           "focus": "이 터미널로 이동",
           "prevQuestion": "전 질문"
+        },
+        "TerminalPaneFlowSides": {
+          "open": "작업 흐름 보기",
+          "close": "작업 흐름 접기"
         }
       }
     },

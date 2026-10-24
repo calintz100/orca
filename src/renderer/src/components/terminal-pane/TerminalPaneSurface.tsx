@@ -28,7 +28,7 @@ import {
 } from './TerminalPaneRuntimePortals'
 import type { TerminalPaneController } from './use-terminal-pane-controller'
 import { useAppStore } from '@/store'
-import { TerminalPaneFlowBars } from '@/components/flow/TerminalPaneFlowBars'
+import { TerminalPaneFlowSides } from '@/components/flow/TerminalPaneFlowSides'
 import { getKnownExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 
@@ -188,8 +188,8 @@ export function TerminalPaneSurface({
         />
       ))}
       <TerminalPaneCodexRestartPortals controller={controller} />
-      {/* Per-pane task summary: title + previous question → result (Flow log). */}
-      <TerminalPaneFlowBars controller={controller} />
+      {/* Per-pane task flow beside each terminal: title, previous question → result, steps. */}
+      <TerminalPaneFlowSides controller={controller} />
       <AgentLaunchPaneNoticePortal
         refusal={visibleLaunchRefusal}
         agentId={activeAgentId}

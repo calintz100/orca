@@ -18664,6 +18664,10 @@
           "toggle": "Show steps and history",
           "focus": "Go to this terminal",
           "prevQuestion": "Previous question"
+        },
+        "TerminalPaneFlowSides": {
+          "open": "Show task flow",
+          "close": "Hide task flow"
         }
       }
     },

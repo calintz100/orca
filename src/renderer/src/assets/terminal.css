@@ -551,6 +551,25 @@
   height: calc(100% - var(--orca-pane-title-height) - var(--orca-pane-top-banner-height, 0px));
 }
 
+/* Flow side panel: the pane's own task flow beside its terminal. It takes real width,
+   so the terminal narrows and refits (the xterm-container ResizeObserver fits on resize). */
+.pane-flow-side {
+  position: absolute;
+  top: calc(var(--orca-pane-top-banner-height, 0px));
+  right: 0;
+  bottom: 0;
+  width: var(--orca-pane-flow-side-width, 0px);
+  z-index: 4;
+}
+
+.pane[data-has-title] .pane-flow-side {
+  top: calc(var(--orca-pane-title-height) + var(--orca-pane-top-banner-height, 0px));
+}
+
+.pane:has(> .pane-flow-side) .xterm-container {
+  width: calc(100% - var(--pane-padding-x, 4px) - var(--orca-pane-flow-side-width, 0px));
+}
+
 /* Ghostty-style URL hover: glued to the pane's true bottom-left corner. */
 .pane-link-tooltip {
   position: absolute;
