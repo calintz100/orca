@@ -992,7 +992,9 @@ if (process.env.ORCA_FLOW_BUILD === '1') {
   config.appId = 'com.calintz.orcaflow'
   config.productName = 'Orca Flow'
   config.protocols = [{ name: 'Orca Flow', schemes: ['orca-flow'] }]
-  config.extraMetadata = { ...(config.extraMetadata ?? {}), orcaFlavor: 'flow' }
+  // Why name too: NSIS derives the per-user install folder (Programs\<name>) from the package
+  // name, so keeping 'orca' would install over the official Orca.
+  config.extraMetadata = { ...(config.extraMetadata ?? {}), name: 'orca-flow', orcaFlavor: 'flow' }
   config.win = { ...config.win, executableName: 'OrcaFlow' }
   config.nsis = { ...config.nsis, artifactName: 'orca-flow-windows-setup.${ext}' }
   config.publish = { provider: 'github', owner: 'calintz100', repo: 'orca', releaseType: 'draft' }
