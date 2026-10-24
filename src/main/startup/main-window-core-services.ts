@@ -15,6 +15,8 @@ import {
 } from './main-process-pty-startup'
 import { prepareCodexRuntimeHomeForLaunch } from './codex-launch-preparation'
 import { resolveHostAgentBaseEnvironment } from '../runtime/structured-agent-shell-environment'
+import { startFlowLog } from '../flow-log/flow-log-service'
+import { agentHookServer } from '../agent-hooks/server'
 import {
   prepareCodexPinnedLaunchHome,
   prepareCodexSessionResumeForLaunch
@@ -113,6 +115,11 @@ export function attachMainWindowCoreServices(
       ? { marketplace: state.pluginMarketplaceService, installer: state.pluginMarketplaceInstaller }
       : undefined
   )
+  // Per-pane question → result log behind the Flow panel and Today's flow board.
+  startFlowLog(agentHookServer, {
+    prepareForClaudeLaunch: (target) => claudeRuntimeAuth.prepareForClaudeLaunch(target),
+    resolveBaseEnvironment: () => resolveHostAgentBaseEnvironment(store.getSettings())
+  })
   automations.setWebContents(window.webContents)
   automations.start()
   attachMainWindowServices(

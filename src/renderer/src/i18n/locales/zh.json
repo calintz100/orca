@@ -5665,7 +5665,8 @@
           "fee535205b": "任务",
           "d599269755": "从侧边栏隐藏",
           "artifacts": "工件",
-          "skills": "技能"
+          "skills": "技能",
+          "todaysFlow": "Today's flow"
         },
         "SidebarRepositoryFilterSection": {
           "d3a9c4cea1": "清除",
@@ -13999,7 +14000,8 @@
             "fc3095d2ed": "资源管理器",
             "aiVaultSessionHistory": "智能体",
             "folderWorkspaces": "已附加的工作树",
-            "parentPrChecks": "PR 检查"
+            "parentPrChecks": "PR 检查",
+            "flowPanel": "Flow"
           },
           "right": {
             "panel": {
@@ -18492,6 +18494,31 @@
         "cancelled": "此普通 SSH 终端在启动前已关闭。",
         "terminalUnavailable": "Orca 无法在此处打开终端。",
         "openHint": "在 Orca 无法在该主机上完成设置时，仍可让你继续在主机上工作。"
+      },
+      "flow": {
+        "FlowPanel": {
+          "empty": "Focus an agent terminal to see its task flow.",
+          "untitled": "New task",
+          "summarizing": "Summarizing…",
+          "turnCount": "{{value0}} questions",
+          "now": "Doing now",
+          "steps": "Steps",
+          "lastQuestion": "Last question",
+          "result": "Result",
+          "history": "Questions",
+          "toolCount": "{{value0}} tools"
+        },
+        "FlowBoardPage": {
+          "lastDone": "Last done",
+          "noQuestions": "No questions yet.",
+          "goToPane": "Go to this terminal",
+          "today": "Today",
+          "stats": "{{value0}} tasks · {{value1}} questions",
+          "copied": "Copied",
+          "copyMarkdown": "Copy as Markdown",
+          "loading": "Loading…",
+          "empty": "No agent work recorded for this day."
+        }
       }
     },
     "i18n": {

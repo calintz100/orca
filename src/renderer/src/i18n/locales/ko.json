@@ -5665,7 +5665,8 @@
           "fee535205b": "작업",
           "d599269755": "사이드바에서 숨기기",
           "artifacts": "아티팩트",
-          "skills": "스킬"
+          "skills": "스킬",
+          "todaysFlow": "오늘의 흐름"
         },
         "SidebarRepositoryFilterSection": {
           "d3a9c4cea1": "지우기",
@@ -13999,7 +14000,8 @@
             "fc3095d2ed": "탐색기",
             "aiVaultSessionHistory": "에이전트",
             "folderWorkspaces": "연결된 워크트리",
-            "parentPrChecks": "PR 검사"
+            "parentPrChecks": "PR 검사",
+            "flowPanel": "흐름"
           },
           "right": {
             "panel": {
@@ -18492,6 +18494,31 @@
         "cancelled": "이 일반 SSH 터미널은 시작되기 전에 닫혔습니다.",
         "terminalUnavailable": "Orca에서 여기의 터미널을 열 수 없습니다.",
         "openHint": "Orca가 호스트에서 설정할 수 없는 동안에도 호스트에서 계속 작업할 수 있습니다."
+      },
+      "flow": {
+        "FlowPanel": {
+          "empty": "에이전트 터미널을 선택하면 작업 흐름이 보입니다.",
+          "untitled": "새 작업",
+          "summarizing": "요약 중…",
+          "turnCount": "질문 {{value0}}회",
+          "now": "지금 하는 일",
+          "steps": "단계",
+          "lastQuestion": "마지막 질문",
+          "result": "처리 결과",
+          "history": "질문 흐름",
+          "toolCount": "도구 {{value0}}회"
+        },
+        "FlowBoardPage": {
+          "lastDone": "마지막에 한 일",
+          "noQuestions": "아직 질문이 없습니다.",
+          "goToPane": "이 터미널로 이동",
+          "today": "오늘",
+          "stats": "작업 {{value0}}개 · 질문 {{value1}}개",
+          "copied": "복사됨",
+          "copyMarkdown": "마크다운으로 복사",
+          "loading": "불러오는 중…",
+          "empty": "이 날짜에 기록된 에이전트 작업이 없습니다."
+        }
       }
     },
     "i18n": {

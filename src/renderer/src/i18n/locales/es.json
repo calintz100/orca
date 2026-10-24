@@ -5699,7 +5699,8 @@
           "fee535205b": "Tareas",
           "d599269755": "Ocultar de la barra lateral",
           "artifacts": "Artefactos",
-          "skills": "Habilidades"
+          "skills": "Habilidades",
+          "todaysFlow": "Today's flow"
         },
         "SidebarRepositoryFilterSection": {
           "d3a9c4cea1": "Limpiar",
@@ -14032,7 +14033,8 @@
             "fc3095d2ed": "explorador",
             "aiVaultSessionHistory": "Agentes",
             "folderWorkspaces": "Worktrees adjuntos",
-            "parentPrChecks": "Checks de PR"
+            "parentPrChecks": "Checks de PR",
+            "flowPanel": "Flow"
           },
           "right": {
             "panel": {
@@ -18493,6 +18495,31 @@
         "copyFailed": "No se pudo copiar el enlace.",
         "signingIn": "Iniciando sesión…",
         "cancel": "Cancelar"
+      },
+      "flow": {
+        "FlowPanel": {
+          "empty": "Focus an agent terminal to see its task flow.",
+          "untitled": "New task",
+          "summarizing": "Summarizing…",
+          "turnCount": "{{value0}} questions",
+          "now": "Doing now",
+          "steps": "Steps",
+          "lastQuestion": "Last question",
+          "result": "Result",
+          "history": "Questions",
+          "toolCount": "{{value0}} tools"
+        },
+        "FlowBoardPage": {
+          "lastDone": "Last done",
+          "noQuestions": "No questions yet.",
+          "goToPane": "Go to this terminal",
+          "today": "Today",
+          "stats": "{{value0}} tasks · {{value1}} questions",
+          "copied": "Copied",
+          "copyMarkdown": "Copy as Markdown",
+          "loading": "Loading…",
+          "empty": "No agent work recorded for this day."
+        }
       }
     },
     "i18n": {

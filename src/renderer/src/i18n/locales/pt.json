@@ -10111,7 +10111,8 @@
             "fc3095d2ed": "explorador",
             "aiVaultSessionHistory": "Agentes",
             "folderWorkspaces": "Worktrees anexadas",
-            "parentPrChecks": "Checks de PR"
+            "parentPrChecks": "Checks de PR",
+            "flowPanel": "Flow"
           },
           "CreatePullRequestDialog": {
             "2bc1b4345e": "Cancelar",
@@ -11208,7 +11209,8 @@
           "fee535205b": "Tarefas",
           "d599269755": "Ocultar da barra lateral",
           "artifacts": "Artefatos",
-          "skills": "Skills"
+          "skills": "Skills",
+          "todaysFlow": "Today's flow"
         },
         "WorktreeIssueLinkField": {
           "25852bfc59": "Linear",
@@ -19084,6 +19086,31 @@
         "cancelled": "Este terminal SSH simples foi fechado antes de iniciar.",
         "terminalUnavailable": "O Orca não conseguiu abrir um terminal aqui.",
         "openHint": "Permite continuar trabalhando no host enquanto o Orca não consegue se configurar nele."
+      },
+      "flow": {
+        "FlowPanel": {
+          "empty": "Focus an agent terminal to see its task flow.",
+          "untitled": "New task",
+          "summarizing": "Summarizing…",
+          "turnCount": "{{value0}} questions",
+          "now": "Doing now",
+          "steps": "Steps",
+          "lastQuestion": "Last question",
+          "result": "Result",
+          "history": "Questions",
+          "toolCount": "{{value0}} tools"
+        },
+        "FlowBoardPage": {
+          "lastDone": "Last done",
+          "noQuestions": "No questions yet.",
+          "goToPane": "Go to this terminal",
+          "today": "Today",
+          "stats": "{{value0}} tasks · {{value1}} questions",
+          "copied": "Copied",
+          "copyMarkdown": "Copy as Markdown",
+          "loading": "Loading…",
+          "empty": "No agent work recorded for this day."
+        }
       }
     },
     "startup": {

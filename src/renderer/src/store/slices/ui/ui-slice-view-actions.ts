@@ -14,6 +14,17 @@ export function createUiViewActions(set: UISliceSet, get: UISliceGet): Partial<U
       set((state) => ({
         activeView: state.previousViewBeforeActivity
       })),
+    openFlowPage: () => {
+      set((state) => ({
+        activeView: 'flow',
+        previousViewBeforeFlow:
+          state.activeView === 'flow' ? state.previousViewBeforeFlow : state.activeView
+      }))
+    },
+    closeFlowPage: () =>
+      set((state) => ({
+        activeView: state.previousViewBeforeFlow
+      })),
     selectedAutomationId: null,
     setSelectedAutomationId: (id) => set({ selectedAutomationId: id }),
     pendingAutomationRunNavigation: null,
