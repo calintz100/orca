@@ -16,13 +16,25 @@ on:
 
 permissions:
   contents: write
+  # The reusable template workflow lists this run's jobs and artifacts.
+  actions: read
 
 concurrency:
   group: orca-flow-win-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  # Without the template the app ships no SSH host servers, so every host reports unsupported.
+  orcad-template:
+    if: github.repository != 'stablyai/orca'
+    uses: ./.github/workflows/qualified-orcad-template.yml
+    with:
+      ref: ${{ github.sha }}
+      # Blacksmith runners belong to stablyai; forks use GitHub-hosted ones.
+      fast_runners: false
+
   build:
+    needs: orcad-template
     if: github.repository != 'stablyai/orca'
     runs-on: windows-2022
     timeout-minutes: 120
@@ -73,8 +85,18 @@ jobs:
         shell: bash
         run: pnpm build:release
 
+      # After the app build so nothing that cleans out/ can drop it; electron-builder ships it.
+      - name: Download the orcad deployment template
+        uses: actions/download-artifact@v8
+        with:
+          name: orcad-template
+          path: out/orcad-template
+
       - name: Package installer
         uses: nick-fields/retry@v4
+        env:
+          # beforePack and afterPack fail the package when the template is absent.
+          ORCA_REQUIRE_ORCAD_TEMPLATE: '1'
         with:
           timeout_minutes: 30
           max_attempts: 2
