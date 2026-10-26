@@ -1,5 +1,10 @@
 import { ipcRenderer } from 'electron'
-import type { FlowLogChangedEvent, FlowPaneSummary, FlowTurn } from '../../shared/flow-log-types'
+import type {
+  FlowLogChangedEvent,
+  FlowPaneSummary,
+  FlowRemoteTurnEvent,
+  FlowTurn
+} from '../../shared/flow-log-types'
 import type { PreloadApi } from '../api-types'
 
 export const flowLogApi = {
@@ -12,5 +17,7 @@ export const flowLogApi = {
       callback(event)
     ipcRenderer.on('flowLog:changed', listener)
     return () => ipcRenderer.removeListener('flowLog:changed', listener)
-  }
+  },
+  recordRemoteTurnEvent: (event: FlowRemoteTurnEvent): void =>
+    ipcRenderer.send('flowLog:remoteTurnEvent', event)
 } satisfies PreloadApi['flowLog']

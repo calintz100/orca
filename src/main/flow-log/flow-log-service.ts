@@ -15,26 +15,11 @@ import { getProfileUserDataPath } from '../orca-profiles/profile-storage-paths'
 import { writeFileDurable } from '../durable-file-write'
 import { clipText, fallbackSummary, summarizeFlowTurn } from './flow-log-summarizer'
 import { parseFlowDayFile, type FlowDayLine } from './flow-log-day-file'
+import { FlowOpenTurns, type OpenTurn } from './flow-log-open-turns'
+import { parseFlowRemoteTurnEvent } from './flow-log-remote-turn-event'
 
-/** The assistant message can arrive in a second `done` emission (transcript flush retry). */
-const TURN_CLOSE_DEBOUNCE_MS = 2500
-const MAX_TOOLS_PER_TURN = 60
 const RECENT_TURNS_PER_PANE = 60
 const RECENT_DAYS_LOADED = 3
-
-type OpenTurn = {
-  prompt: string
-  startedAt: number
-  tools: string[]
-  tabId?: string
-  worktreeId?: string
-  agentType?: string
-  sessionId?: string
-  transcriptPath?: string
-  assistant: string
-  endedAt: number
-  closeTimer: ReturnType<typeof setTimeout> | null
-}
 
 type HookSource = {
   subscribeEnrichedStatus(listener: (payload: EnrichedAgentHookEventPayload) => void): () => void
@@ -45,7 +30,6 @@ class FlowLogService {
   private readonly panesFile = join(this.dir, 'panes.json')
   private panes = new Map<string, FlowPaneSummary>()
   private recentTurns = new Map<string, FlowTurn[]>()
-  private openTurns = new Map<string, OpenTurn>()
   private summaryQueue: Promise<void> = Promise.resolve()
   private loaded: Promise<void>
   private saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -135,74 +119,7 @@ class FlowLogService {
     return this.recentTurns.get(paneKey) ?? []
   }
 
-  // ---- hook events -------------------------------------------------------------------
-
-  handleEvent(event: EnrichedAgentHookEventPayload): void {
-    if (
-      event.isReplay ||
-      event.providerSessionOnly ||
-      event.restoredUnconfirmed ||
-      event.structuredHost ||
-      event.programStatusOnly ||
-      // Subagent rows never describe the lead agent's turn.
-      event.toolAgentId
-    ) {
-      return
-    }
-    const { paneKey, payload } = event
-    if (event.hookEventName === 'UserPromptSubmit' && payload.prompt) {
-      this.closeTurnNow(paneKey)
-      this.openTurns.set(paneKey, {
-        prompt: payload.prompt,
-        startedAt: event.receivedAt,
-        tools: [],
-        tabId: event.tabId,
-        worktreeId: event.worktreeId,
-        agentType: payload.agentType,
-        sessionId: event.providerSession?.id,
-        transcriptPath: event.providerSession?.transcriptPath,
-        assistant: '',
-        endedAt: event.receivedAt,
-        closeTimer: null
-      })
-      this.notify(paneKey, event.receivedAt)
-      return
-    }
-    const open = this.openTurns.get(paneKey)
-    if (!open) {
-      return
-    }
-    if (event.providerSession?.transcriptPath) {
-      open.transcriptPath = event.providerSession.transcriptPath
-    }
-    if (event.hookEventName === 'PreToolUse' && payload.toolName) {
-      const label = clipText(payload.toolName, 80)
-      if (open.tools.at(-1) !== label && open.tools.length < MAX_TOOLS_PER_TURN) {
-        open.tools.push(label)
-      }
-    }
-    if (payload.state === 'done' && !payload.sessionBoundary) {
-      if (payload.lastAssistantMessage && !payload.lastAssistantMessageIsToolOutput) {
-        open.assistant = payload.lastAssistantMessage
-      }
-      open.endedAt = event.receivedAt
-      if (open.closeTimer) {
-        clearTimeout(open.closeTimer)
-      }
-      open.closeTimer = setTimeout(() => this.closeTurnNow(paneKey), TURN_CLOSE_DEBOUNCE_MS)
-    }
-  }
-
-  /** Closes a pane's turn if it already ended (a `done` was seen). */
-  private closeTurnNow(paneKey: string): void {
-    const open = this.openTurns.get(paneKey)
-    if (!open || !open.closeTimer) {
-      return
-    }
-    clearTimeout(open.closeTimer)
-    this.openTurns.delete(paneKey)
-    void this.finishTurn(paneKey, open)
-  }
+  // ---- finished turns ----------------------------------------------------------------
 
   private fullPrompt(open: OpenTurn): string {
     const fromTranscript = readLastUserPromptFromTranscript(open.transcriptPath)
@@ -213,7 +130,7 @@ class FlowLogService {
     return open.prompt
   }
 
-  private async finishTurn(paneKey: string, open: OpenTurn): Promise<void> {
+  async finishTurn(paneKey: string, open: OpenTurn): Promise<void> {
     await this.loaded
     const prompt = clipText(this.fullPrompt(open), 4000)
     const assistant = clipText(open.assistant, 4000)
@@ -290,7 +207,7 @@ class FlowLogService {
     this.notify(turn.paneKey, turn.startedAt)
   }
 
-  private notify(paneKey: string, ts: number): void {
+  notify(paneKey: string, ts: number): void {
     const event: FlowLogChangedEvent = { paneKey, date: flowLogDateKey(ts) }
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) {
@@ -312,9 +229,13 @@ export function startFlowLog(
   }
   const instance = new FlowLogService(resolvers)
   service = instance
+  const turns = new FlowOpenTurns(
+    (paneKey, at) => instance.notify(paneKey, at),
+    (paneKey, turn) => void instance.finishTurn(paneKey, turn)
+  )
   hookSource.subscribeEnrichedStatus((event) => {
     try {
-      instance.handleEvent(event)
+      turns.handleHookEvent(event)
     } catch (error) {
       console.error('[flow-log] event handling failed', error)
     }
@@ -326,4 +247,10 @@ export function startFlowLog(
   ipcMain.handle('flowLog:getDay', (_event, date: unknown) =>
     typeof date === 'string' ? instance.readDay(date) : []
   )
+  ipcMain.on('flowLog:remoteTurnEvent', (_event, raw: unknown) => {
+    const event = parseFlowRemoteTurnEvent(raw)
+    if (event) {
+      turns.handleRemoteEvent(event)
+    }
+  })
 }

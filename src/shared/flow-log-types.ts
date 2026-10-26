@@ -52,6 +52,23 @@ export type FlowLogSnapshot = {
   panes: FlowPaneSummary[]
 }
 
+/**
+ * A turn step of a pane whose agent runs on a remote orcad host. Its hooks reach that host's
+ * hook server, not this desktop's, so the renderer forwards what its live status shows.
+ */
+export type FlowRemoteTurnEvent =
+  | {
+      kind: 'prompt'
+      paneKey: string
+      prompt: string
+      at: number
+      tabId?: string
+      worktreeId?: string
+      agentType?: string
+    }
+  | { kind: 'tool'; paneKey: string; toolName: string; at: number }
+  | { kind: 'done'; paneKey: string; assistant: string; at: number }
+
 export type FlowLogChangedEvent = {
   paneKey: string
   /** Local date (YYYY-MM-DD) of the day file that changed. */
