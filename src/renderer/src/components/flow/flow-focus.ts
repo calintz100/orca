@@ -1,7 +1,7 @@
 import { useAppStore } from '@/store'
-import { activateTabAndFocusPane } from '@/lib/activate-tab-and-focus-pane'
-import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
-import { parsePaneKey } from '../../../../shared/stable-pane-id'
+import { activateTabAndFocusPane } from '@/lib/workspace/tabs/activate-tab-and-focus-pane'
+import { activateAndRevealWorkspace } from '@/lib/workspace/activation/worktree-activation'
+import { parsePaneKey } from '../../../../shared/workspace-layout/stable-pane-id'
 
 /** Focus an agent pane (switching workspace/tab as needed). Returns false when it no longer exists. */
 export function focusFlowPane(target: {

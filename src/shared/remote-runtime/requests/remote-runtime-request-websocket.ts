@@ -1,17 +1,15 @@
 import WebSocket from 'ws'
-import type { PairedRuntimeConnection } from '../../paired-runtime-connection'
-import type { PairedE2EEClientHandshake } from '../../paired-e2ee-client-handshake'
-import { createRemoteRuntimeClientHandshake } from '../../remote-runtime-client-handshake'
-import { RemoteRuntimeClientError } from '../../remote-runtime-client-error'
+import type { PairedRuntimeConnection } from '../pairing/paired-runtime-connection'
+import type { PairedE2EEClientHandshake } from '../e2ee/paired-e2ee-client-handshake'
+import { createRemoteRuntimeClientHandshake } from '../remote-runtime-client-framing'
+import { RemoteRuntimeClientError } from '../remote-runtime-client-error'
 import {
   remoteRuntimeConnectFailureMessage,
   remoteRuntimeConnectOptions
 } from '../remote-runtime-connect-bound'
-import { REMOTE_RUNTIME_MAX_WEBSOCKET_FRAME_BYTES } from '../../remote-runtime-memory-limits'
-import {
-  invalidRemoteRuntimeResponseError,
-  remoteRuntimeUnavailableError
-} from './remote-runtime-request-frames'
+import { REMOTE_RUNTIME_MAX_WEBSOCKET_FRAME_BYTES } from '../remote-runtime-memory-limits'
+import { remoteRuntimeUnavailableError } from './remote-runtime-request-frames'
+import { readSealedFrame, type RemoteRuntimeSealedFrame } from '../remote-runtime-sealed-frame'
 
 export type RemoteRuntimeWebSocket = {
   ws: WebSocket
@@ -20,13 +18,13 @@ export type RemoteRuntimeWebSocket = {
 }
 
 export type RemoteRuntimeWebSocketCallbacks = {
+  /** The opening handshake completed and the E2EE hello was sent. */
+  onOpen?: (ws: WebSocket) => void
   onClose: (ws: WebSocket, code: number, reason: Buffer) => void
   onError: (ws: WebSocket, error: RemoteRuntimeClientError) => void
-  onTextFrame: (ws: WebSocket, frame: string) => void
-  // Why optional: request sockets treat a binary frame as a protocol error; a relay forwards it.
-  onBinaryFrame?: (ws: WebSocket, frame: Uint8Array<ArrayBufferLike>) => void
-  // Why: protocol-level pongs (and server heartbeat pings) are the liveness
-  // signal for detecting half-open tunnels that never deliver `close` (#7718).
+  // Binary frames may carry compressed text, so readers open both kinds the same way.
+  onFrame: (ws: WebSocket, frame: RemoteRuntimeSealedFrame) => void
+  // Pongs and heartbeat pings expose half-open tunnels that never emit close (#7718).
   onPong?: (ws: WebSocket) => void
   onPing?: (ws: WebSocket) => void
 }
@@ -34,8 +32,7 @@ export type RemoteRuntimeWebSocketCallbacks = {
 export function openRemoteRuntimeWebSocket(
   connection: PairedRuntimeConnection,
   callbacks: RemoteRuntimeWebSocketCallbacks,
-  // Why: overridable so the connect-bound regression test can pin the behaviour
-  // without spending the production budget of wall-clock time.
+  // Override for connect-bound tests without waiting the production timeout.
   connectTimeoutMs?: number
 ): { ok: true; socket: RemoteRuntimeWebSocket } | { ok: false; error: RemoteRuntimeClientError } {
   const opened = createSocket(connection, connectTimeoutMs)
@@ -47,6 +44,7 @@ export function openRemoteRuntimeWebSocket(
   let cleanedUp = false
   const onOpen = (): void => {
     ws.send(handshake.helloText())
+    callbacks.onOpen?.(ws)
   }
   const onError = (error: Error): void => {
     callbacks.onError(
@@ -56,20 +54,7 @@ export function openRemoteRuntimeWebSocket(
   }
   const onClose = (code: number, reason: Buffer): void => callbacks.onClose(ws, code, reason)
   const onMessage = (data: WebSocket.RawData, isBinary: boolean): void => {
-    if (isBinary && callbacks.onBinaryFrame && Buffer.isBuffer(data)) {
-      callbacks.onBinaryFrame(ws, new Uint8Array(data))
-      return
-    }
-    if (isBinary) {
-      callbacks.onError(
-        ws,
-        invalidRemoteRuntimeResponseError(
-          'Remote Orca runtime returned an unexpected binary frame.'
-        )
-      )
-      return
-    }
-    callbacks.onTextFrame(ws, data.toString())
+    callbacks.onFrame(ws, readSealedFrame(data, isBinary))
   }
   const onPong = (): void => callbacks.onPong?.(ws)
   const onPing = (): void => callbacks.onPing?.(ws)
@@ -84,8 +69,7 @@ export function openRemoteRuntimeWebSocket(
     ws.off('message', onMessage)
     ws.off('pong', onPong)
     ws.off('ping', onPing)
-    // Why: a manually closed ws can still emit a late transport error; keep
-    // that from becoming an unhandled EventEmitter error after detaching Orca.
+    // Retain an error listener for late transport errors after manual close.
     if (ws.readyState !== WebSocket.CLOSED) {
       ws.on('error', ignoreLateSocketError)
     }

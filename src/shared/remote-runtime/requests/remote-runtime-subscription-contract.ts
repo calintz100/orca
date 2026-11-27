@@ -1,7 +1,7 @@
-import type { RemoteRuntimeClientError } from '../../remote-runtime-client-error'
-import type { RuntimeCapability } from '../../protocol-version'
-import type { RuntimeRpcResponse } from '../../runtime-rpc-envelope'
-import type { RemoteRuntimeSocketLivenessOptions } from '../../remote-runtime-socket-liveness'
+import type { RemoteRuntimeClientError } from '../remote-runtime-client-error'
+import type { RuntimeCapability } from '../protocol/protocol-version'
+import type { RuntimeRpcResponse } from '../rpc/runtime-rpc-envelope'
+import type { RemoteRuntimeSocketLivenessOptions } from '../remote-runtime-socket-liveness'
 import type {
   RemoteRuntimeOutboundMemoryBudget,
   RemoteRuntimeOutboundQueueOptions
@@ -28,10 +28,11 @@ export type RemoteRuntimeTransportSubscriptionCallbacks<TResult = unknown> = {
 export type RemoteRuntimeSubscriptionOptions = RemoteRuntimeSocketLivenessOptions & {
   signal?: AbortSignal
   clientCapabilities?: readonly RuntimeCapability[]
+  /** Background traffic (a poll): a host whose socket is passive doesn't count it as use. */
+  idlePassive?: boolean
   perMessageDeflate?: boolean
   outboundQueue?: RemoteRuntimeOutboundQueueOptions
   outboundMemoryBudget?: RemoteRuntimeOutboundMemoryBudget
-  // Why: overridable so the connect-bound regression test can pin the ordering against the
-  // subscription-start timer without spending production wall-clock.
+  // Override to test ordering against the subscription-start timeout without production waits.
   connectTimeoutMs?: number
 }

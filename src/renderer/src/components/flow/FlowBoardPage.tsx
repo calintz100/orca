@@ -3,18 +3,18 @@ import { ChevronLeft, ChevronRight, Copy, SquareArrowOutUpRight, Waypoints } fro
 import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import { Button } from '@/components/ui/button'
-import { AgentStateDot } from '@/components/AgentStateDot'
-import { agentRowDotState } from '@/lib/agent-row-dot-state'
-import { activateTabAndFocusPane } from '@/lib/activate-tab-and-focus-pane'
-import { activateAndRevealWorkspace } from '@/lib/worktree-activation'
+import { AgentStateDot } from '@/components/agent/status/AgentStateDot'
+import { agentRowDotState } from '../../../../shared/agent-row-dot-state'
+import { activateTabAndFocusPane } from '@/lib/workspace/tabs/activate-tab-and-focus-pane'
+import { activateAndRevealWorkspace } from '@/lib/workspace/activation/worktree-activation'
 import {
   flowLogDateKey,
   type FlowPaneSummary,
   type FlowTurn
 } from '../../../../shared/flow-log-types'
-import { parsePaneKey } from '../../../../shared/stable-pane-id'
+import { parsePaneKey } from '../../../../shared/workspace-layout/stable-pane-id'
 import { FlowStepList } from './FlowStepList'
 import { formatClock, formatDuration, useFlowDay, useFlowPaneSummaries } from './use-flow-log'
 

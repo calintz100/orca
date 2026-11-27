@@ -1,8 +1,8 @@
 import { runProcess } from '@orca/process-host'
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { app } from 'electron'
 import { platform, tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
+import { getAppEnvironment } from '../../shared/app-lifecycle/app-environment'
 import { EmulatorError } from './emulator-errors'
 import { materializeServeSimRuntime } from './serve-sim-runtime-materializer'
 
@@ -68,8 +68,8 @@ function resolveMaterializedServeSimPackageDir(bundledPackageDir: string): strin
   }
   materializedServeSimPackageDir = materializeServeSimRuntime({
     bundledPackageDir,
-    targetRootDir: join(app.getPath('userData'), 'serve-sim-runtime'),
-    version: app.getVersion()
+    targetRootDir: join(getAppEnvironment().getPath('userData'), 'serve-sim-runtime'),
+    version: getAppEnvironment().getVersion()
   })
   if (materializedServeSimPackageDir === null) {
     console.warn(
@@ -84,8 +84,8 @@ export function resolveServeSimExecutable(): ServeSimExecutable {
   const bundledResourcesPath =
     process.resourcesPath ??
     (process.platform === 'darwin'
-      ? join(app.getPath('exe'), '..', '..', 'Resources')
-      : join(app.getPath('exe'), '..', 'resources'))
+      ? join(getAppEnvironment().getPath('exe'), '..', '..', 'Resources')
+      : join(getAppEnvironment().getPath('exe'), '..', 'resources'))
   // Prefer the legacy Resources/serve-sim path for already-installed bundles.
   for (const bundledPackageDir of [
     join(bundledResourcesPath, 'serve-sim'),
@@ -109,7 +109,7 @@ export function resolveServeSimExecutable(): ServeSimExecutable {
     return { command: process.execPath, baseArgs: [bundledEntry], usesElectronAsNode: true }
   }
 
-  const nodeModulesPackageDir = join(app.getAppPath(), 'node_modules', 'serve-sim')
+  const nodeModulesPackageDir = join(getAppEnvironment().getAppPath(), 'node_modules', 'serve-sim')
   const nodeModulesEntry = join(nodeModulesPackageDir, 'dist', 'serve-sim.js')
   if (existsSync(nodeModulesEntry)) {
     return { command: process.execPath, baseArgs: [nodeModulesEntry], usesElectronAsNode: true }
@@ -171,6 +171,12 @@ export function stripEmulatorTargetArgs(args: string[]): string[] {
   return stripped
 }
 
+function serveSimFailureMessage(output: string): string {
+  // Uncaught throws print serve-sim's minified source (every CLI message) first; keep the thrown error.
+  const thrown = /^\w*Error: [\s\S]*?(?=^\s+at |^Node\.js v)/m.exec(output)
+  return thrown?.[0].trim() || output.trim() || 'serve-sim command failed'
+}
+
 export async function execServeSimCommand(
   executable: ServeSimExecutable,
   args: string[],
@@ -198,11 +204,12 @@ export async function execServeSimCommand(
     )
   }
   if (result.code !== 0 || result.timedOut) {
-    const message = result.stdout || result.stderr || 'serve-sim command failed'
-    if (/no serve-sim server|not running/i.test(message)) {
+    const message = serveSimFailureMessage(result.stdout || result.stderr)
+    // Why: serve-sim also says "not running" for a missing camera helper; that needs its own message.
+    if (/^no serve-sim server/im.test(message)) {
       throw new EmulatorError(
         'emulator_no_active',
-        'No active emulator for this worktree — use orca emulator list/attach or open the pane'
+        'No active emulator for this worktree — use orca emulator devices/attach or open the pane'
       )
     }
     throw new EmulatorError('emulator_error', message)

@@ -1,8 +1,14 @@
+import {
+  compareAppVersions,
+  isValidAppVersion
+} from '../../../shared/app-lifecycle/identity/app-version'
+import type { OrcadManagedPastLiveTerminals } from '../../../shared/remote-runtime/orcad-lifecycle/orcad-managed-runtime'
 import type { OrcadActivationRecord } from '../activation/orcad-activation-record'
+import type { OrcadUpdateForce } from '../activation/orcad-update-plan'
 import {
   refuseOrcadHostDowngrade,
   type OrcadHostVersionRefusal
-} from '../../ssh/orcad-host-version-admission'
+} from '../activation/orcad-host-version-admission'
 
 export type ManagedOrcadAutoUpdateSkip =
   | 'current'
@@ -60,6 +66,22 @@ export function planOrcadUpdateForIntent(
   return planManagedOrcadAutoUpdate({ ...input, record, failedBefore: false })
 }
 
+/** Full force over an uncounted census ends terminals orcad runs itself, so it needs a confirmation, never a bare force. */
+export function managedOrcadUpdateForce(input: {
+  force?: boolean
+  pastLiveTerminals?: OrcadManagedPastLiveTerminals
+  /** The caller confirmed terminals orcad runs itself end, as CLI `--force --yes` does. */
+  endInProcessTerminals?: boolean
+}): OrcadUpdateForce | undefined {
+  if (input.pastLiveTerminals) {
+    return input.pastLiveTerminals.uncounted ? true : 'live-terminals'
+  }
+  if (!input.force) {
+    return input.force
+  }
+  return input.endInProcessTerminals === true ? true : 'live-terminals'
+}
+
 export function admitOrcadRecordForIntent(
   intent: OrcadUpdateIntent,
   appVersion: string
@@ -92,4 +114,44 @@ export function orcadUpdateSkipRefusal(
         'it again; choose Update or Force to retry it.'
     : `Orca ${record.activeAppVersion} last ran this host's server, newer than this ` +
         `Orca (${appVersion}). Update Orca to start it.`
+}
+
+/** Content hashes cannot order updates: compare Orca versions, or for legacy hosts offer only this desktop's previously deferred build. */
+export function availableManagedOrcadUpdate(input: {
+  record: OrcadActivationRecord
+  candidateVersion: string | null
+  appVersion: string
+  /** The build this desktop's last Update or connect deferred on this host. */
+  deferredCandidateVersion: string | null
+}): string | null {
+  const { record, candidateVersion, appVersion } = input
+  const hostAppVersion = record.activeAppVersion
+  if (!candidateVersion || record.active === null || !isValidAppVersion(appVersion)) {
+    return null
+  }
+  const ordered = hostAppVersion
+    ? isValidAppVersion(hostAppVersion) && compareAppVersions(appVersion, hostAppVersion) >= 0
+    : input.deferredCandidateVersion === candidateVersion
+  if (!ordered) {
+    return null
+  }
+  // Connect rules: a build the user rolled back from is not advertised again.
+  const plan = planManagedOrcadAutoUpdate({
+    record,
+    candidateVersion,
+    appVersion,
+    failedBefore: false
+  })
+  return plan.action === 'update' ? candidateVersion : null
+}
+
+/** Update anyway was confirmed over one incumbent build; a build activated since then voids it. */
+export function admitConfirmedIncumbent(
+  admit: (record: OrcadActivationRecord, candidateVersion: string) => string | null,
+  incumbentVersion: string | null
+): (record: OrcadActivationRecord, candidateVersion: string) => string | null {
+  return (record, candidateVersion) =>
+    record.active !== incumbentVersion
+      ? "This host's server changed since the update was confirmed. Review it and update again."
+      : admit(record, candidateVersion)
 }

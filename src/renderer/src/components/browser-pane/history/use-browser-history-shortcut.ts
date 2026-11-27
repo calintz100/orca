@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { useAppStore } from '@/store'
-import { getShortcutPlatform } from '@/hooks/useShortcutLabel'
-import { addAppKeyListener, removeAppKeyListener } from '@/lib/app-keyboard-router'
-import { keybindingMatchesAction } from '../../../../../shared/keybindings'
+import { getShortcutPlatform } from '@/lib/keyboard/shortcut-platform'
+import { addAppKeyListener, removeAppKeyListener } from '@/lib/keyboard/app-keyboard-router'
+import { keybindingMatchesAction } from '../../../../../shared/keybindings/matching'
 import { browserChromeShortcutOwnsEvent } from '../describe-page/browser-overlay-shortcut-target'
 import type { BrowserChromeShortcutScope } from '../describe-page/browser-page-types'
 
@@ -49,8 +49,7 @@ export function useBrowserHistoryShortcut({
       if (!keybindingMatchesAction('browser.showHistory', event, shortcutPlatform, keybindings)) {
         return
       }
-      // Why: an open view keeps its page; its portaled search field sits outside every pane, so
-      // ownership would hand the chord, and the next pick, to whichever pane claims stray keys.
+      // Retain an open dialog’s page ownership; its portaled search field sits outside every pane.
       const historyOpen = useAppStore.getState().browserHistoryPageId !== null
       if (
         !historyOpen &&

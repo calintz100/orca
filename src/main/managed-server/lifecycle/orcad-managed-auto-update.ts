@@ -2,19 +2,18 @@ import {
   planManagedOrcadAutoUpdate,
   type ManagedOrcadAutoUpdateSkip
 } from './orcad-managed-update-decision'
-import { materializeOrcadArtifact } from '../../orcad/orcad-artifact-materializer'
+import { OrcadCrashLoopError } from './orcad-managed-crash-loop'
+import { materializeOrcadArtifact } from '../../orcad/artifact-slots/orcad-artifact-materializer'
 import {
   OrcadArtifactsUnavailableError,
   OrcadHostUnsupportedError
-} from '../../orcad/orcad-host-unavailable'
+} from '../../orcad/diagnostics/orcad-host-unavailable'
 import { findIncompleteManagedOrcadMigration } from './orcad-managed-migration-status'
 import { ORCAD_ACTIVATION_FENCE_BUSY_CODE } from '../activation/orcad-activation-fence-hold'
 import { resolveLinkedOrcadContext } from './orcad-managed-runtime-context'
-import {
-  runManagedOrcadUpdate,
-  withManagedOrcadLifecycle
-} from '../../ssh/orcad-runtime-maintenance'
-import type { OrcadUpdateDeferCode } from '../../ssh/orcad-update-plan'
+import { runManagedOrcadUpdate } from './orcad-runtime-maintenance'
+import { withManagedOrcadLifecycle } from './orcad-managed-lifecycle'
+import type { OrcadUpdateDeferCode } from '../activation/orcad-update-plan'
 import { readLocalFullVersion } from '../install/remote-versioned-install'
 
 export type ManagedOrcadAutoUpdateOutcome =
@@ -40,7 +39,7 @@ export function isWaitingOrcadUpdateDeferral(code: string): boolean {
   return WAITING_CODES.has(code)
 }
 
-export function autoUpdateManagedOrcadEnvironment(
+export async function autoUpdateManagedOrcadEnvironment(
   userDataPath: string,
   args: {
     environmentId: string
@@ -50,13 +49,13 @@ export function autoUpdateManagedOrcadEnvironment(
     onUpdating: () => void
   }
 ): Promise<ManagedOrcadAutoUpdateOutcome> {
-  return withManagedOrcadLifecycle(userDataPath, args.environmentId, async (managed) => {
+  return await withManagedOrcadLifecycle(userDataPath, args.environmentId, async (managed) => {
     // Restarting during migration would race cutover staging.
     if (findIncompleteManagedOrcadMigration(userDataPath, managed.environment.id)) {
       return { outcome: 'skipped', reason: 'migrating' }
     }
     const context = await resolveLinkedOrcadContext(managed.environment, managed.deployment)
-    const candidateVersion = await bundledOrcadVersion(context.serverTarget)
+    const candidateVersion = await bundledManagedOrcadVersion(context.serverTarget)
     const plan = planManagedOrcadAutoUpdate({
       record: context.activationRecord,
       candidateVersion,
@@ -95,6 +94,10 @@ export function autoUpdateManagedOrcadEnvironment(
         ? { outcome: 'deferred', code: result.code, reason: result.reason }
         : { outcome: 'failed', reason: result.reason }
     } catch (error) {
+      // The host already runs this build; the brake's reason shows on its server status instead.
+      if (error instanceof OrcadCrashLoopError) {
+        return { outcome: 'skipped', reason: 'current' }
+      }
       return { outcome: 'failed', reason: error instanceof Error ? error.message : String(error) }
     }
   })
@@ -105,7 +108,8 @@ type OrcadTarget = Parameters<typeof materializeOrcadArtifact>[0]
 // Packaged templates cannot change during this session; avoid repeated hashing.
 const bundledVersions = new Map<OrcadTarget, Promise<string | null>>()
 
-function bundledOrcadVersion(target: OrcadTarget): Promise<string | null> {
+/** This build's orcad version for `target`; null when the build bundles none for it. */
+export function bundledManagedOrcadVersion(target: OrcadTarget): Promise<string | null> {
   let version = bundledVersions.get(target)
   if (!version) {
     version = materializeOrcadArtifact(target).then(readLocalFullVersion, (error: unknown) => {
@@ -122,8 +126,4 @@ function bundledOrcadVersion(target: OrcadTarget): Promise<string | null> {
     bundledVersions.set(target, version)
   }
   return version
-}
-
-export function resetBundledOrcadVersionsForTests(): void {
-  bundledVersions.clear()
 }

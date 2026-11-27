@@ -2,28 +2,28 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, posix as pathPosix } from 'node:path'
 import type { SFTPWrapper } from 'ssh2'
 
-import type { AgentHookInstallState, AgentHookInstallStatus } from '../../shared/agent-hook-types'
-import { isDefinitiveAbsence } from '../../shared/definitive-filesystem-absence'
-import {
-  buildWindowsAgentHookCurlPostCommand,
-  isPlainObject,
-  writeHooksJson,
-  writeManagedScript
-} from '../agent-hooks/installer-utils'
+import type {
+  AgentHookInstallState,
+  AgentHookInstallStatus
+} from '../../shared/agent-hook-listener/configuration/agent-hook-types'
+import { isDefinitiveAbsence } from '../../shared/errors/definitive-filesystem-absence'
+import { buildWindowsAgentHookCurlPostCommand } from '../agent-hooks/installation/commands/windows-agent-hook-post-command'
+import { isPlainObject } from '../agent-hooks/installation/configuration/hooks-json-read'
+import { writeHooksJson } from '../agent-hooks/installation/configuration/hooks-json-write'
+import { writeManagedScript } from '../agent-hooks/installation/scripts/managed-hook-script-write'
 import {
   listRemoteDirectory,
   readTextFileRemote,
-  writeManagedScriptRemote,
   writeTextFileRemoteAtomic
-} from '../agent-hooks/installer-utils-remote'
-import { refreshManagedScriptIfPresent } from '../agent-hooks/managed-hook-script-refresh'
+} from '../agent-hooks/installation/remote/hook-text-files-remote'
+import { writeManagedScriptRemote } from '../agent-hooks/installation/scripts/managed-script-write-remote'
+import { refreshManagedScriptIfPresent } from '../agent-hooks/installation/scripts/managed-hook-script-refresh'
 import {
   buildPosixHookPayloadCapture,
   buildPosixHookSpoolLines,
-  buildWindowsHookEnvironmentGuardLines,
-  buildWindowsHookStdinDrainEpilogue
-} from '../agent-hooks/hook-stdin-contract'
-import { buildPosixAgentHookPostCommand } from '../agent-hooks/hook-post-command'
+  buildWindowsHookEnvironmentGuardLines
+} from '../agent-hooks/installation/scripts/hook-stdin-contract'
+import { buildPosixAgentHookPostCommand } from '../agent-hooks/installation/scripts/hook-post-command'
 import {
   applyManagedKiroHooks,
   getKiroAgentsDir,
@@ -32,6 +32,8 @@ import {
   getKiroManagedScriptPath,
   getKiroRemoteAgentsDir,
   getKiroRemoteManagedCommand,
+  getKiroRemoteStandaloneManagedCommand,
+  getKiroStandaloneManagedCommand,
   isKiroAgentConfigFileName,
   isKiroHooksConfigSupported,
   KIRO_HOOK_EVENTS,
@@ -39,6 +41,14 @@ import {
   removeManagedKiroHooks,
   serializeKiroAgentConfig
 } from './hook-settings'
+import { getKiroRemoteStandaloneHooksFilePath } from './standalone-hook-settings'
+import {
+  getKiroStandaloneHooksStatus,
+  installKiroStandaloneHooks,
+  installKiroStandaloneHooksRemote,
+  removeKiroStandaloneHooks,
+  withKiroStandaloneHooksStatus
+} from './standalone-hooks'
 
 // Kiro injects hook stdout into model context; every path must stay silent.
 function getManagedScript(target: 'local' | 'posix' = 'local'): string {
@@ -50,7 +60,6 @@ function getManagedScript(target: 'local' | 'posix' = 'local'): string {
       ...buildWindowsHookEnvironmentGuardLines(),
       buildWindowsAgentHookCurlPostCommand('kiro'),
       'exit /b 0',
-      ...buildWindowsHookStdinDrainEpilogue(),
       ''
     ].join('\r\n')
   }
@@ -76,7 +85,7 @@ function getManagedScript(target: 'local' | 'posix' = 'local'): string {
 }
 
 function noAgentsDetail(agentsDir: string): string {
-  return `No custom Kiro agents in ${agentsDir}. Kiro's built-in default agent cannot carry hooks; create one with \`kiro-cli agent create\` and make it the default so Orca can track Kiro's status`
+  return `No custom Kiro agents in ${agentsDir}. On Kiro's V2 engine the built-in default agent cannot carry hooks; create one with \`kiro-cli agent create\` and make it the default so Orca can track Kiro's status`
 }
 
 type AgentFileRead =
@@ -169,30 +178,31 @@ export class KiroHookService {
   getStatus(): AgentHookInstallStatus {
     const agentsDir = getKiroAgentsDir()
     const files = readLocalAgentFiles(agentsDir)
+    const standalone = getKiroStandaloneHooksStatus()
     if (files === null) {
-      return status(agentsDir, 'error', 'Could not read the Kiro agents directory')
+      return withKiroStandaloneHooksStatus(
+        status(agentsDir, 'error', 'Could not read the Kiro agents directory'),
+        standalone
+      )
     }
     const result = buildStatus(agentsDir, files)
-    return result.managedHooksPresent && !existsSync(getKiroManagedScriptPath())
-      ? { ...result, state: 'partial', detail: 'Managed hook script missing' }
-      : result
+    return withKiroStandaloneHooksStatus(
+      result.managedHooksPresent && !existsSync(getKiroManagedScriptPath())
+        ? { ...result, state: 'partial', detail: 'Managed hook script missing' }
+        : result,
+      standalone
+    )
   }
 
   install(): AgentHookInstallStatus {
     const agentsDir = getKiroAgentsDir()
     const files = readLocalAgentFiles(agentsDir)
-    if (files === null) {
-      return status(agentsDir, 'error', 'Could not read the Kiro agents directory')
-    }
     const scriptPath = getKiroManagedScriptPath()
-    // Write the script first so no agent config ever points at a missing file.
+    // Write the script first so no hooks file ever points at a missing file.
     writeManagedScript(scriptPath, getManagedScript())
-    if (files.length === 0) {
-      return status(agentsDir, 'not_installed', noAgentsDetail(agentsDir))
-    }
     const command = getKiroManagedCommand(scriptPath)
     const isManaged = getKiroManagedCommandMatcher()
-    for (const file of files) {
+    for (const file of files ?? []) {
       if ('error' in file) {
         continue
       }
@@ -202,6 +212,8 @@ export class KiroHookService {
         preserveMode: true
       })
     }
+    // V3 applies it to every agent, including the built-in default.
+    installKiroStandaloneHooks(getKiroStandaloneManagedCommand(scriptPath))
     return this.getStatus()
   }
 
@@ -214,14 +226,23 @@ export class KiroHookService {
     const agentsDir = getKiroRemoteAgentsDir(remoteHome, kiroHomeDir)
     const scriptPath = `${remoteHome.replace(/\/$/, '')}/.orca/agent-hooks/kiro-hook.sh`
     try {
+      // Write the script first so no hooks file ever points at a missing file.
+      await writeManagedScriptRemote(sftp, scriptPath, getManagedScript('posix'))
+      const command = getKiroRemoteManagedCommand(scriptPath)
+      const standalone = await installKiroStandaloneHooksRemote(
+        sftp,
+        getKiroRemoteStandaloneHooksFilePath(remoteHome, kiroHomeDir),
+        getKiroRemoteStandaloneManagedCommand(scriptPath)
+      )
       const fileNames = ((await listRemoteDirectory(sftp, agentsDir)) ?? [])
         .filter(isKiroAgentConfigFileName)
         .sort()
       if (fileNames.length === 0) {
-        return status(agentsDir, 'not_installed', noAgentsDetail(agentsDir))
+        return withKiroStandaloneHooksStatus(
+          status(agentsDir, 'not_installed', noAgentsDetail(agentsDir)),
+          standalone
+        )
       }
-      await writeManagedScriptRemote(sftp, scriptPath, getManagedScript('posix'))
-      const command = getKiroRemoteManagedCommand(scriptPath)
       const isManaged = getKiroManagedCommandMatcher()
       const files: AgentFileRead[] = []
       for (const fileName of fileNames) {
@@ -240,17 +261,18 @@ export class KiroHookService {
         await writeTextFileRemoteAtomic(sftp, path, serializeKiroAgentConfig(next))
         files.push({ fileName, config: next })
       }
-      return buildStatus(agentsDir, files)
+      return withKiroStandaloneHooksStatus(buildStatus(agentsDir, files), standalone)
     } catch (err) {
       return status(agentsDir, 'error', err instanceof Error ? err.message : String(err))
     }
   }
 
   remove(): AgentHookInstallStatus {
+    removeKiroStandaloneHooks()
     const agentsDir = getKiroAgentsDir()
     const files = readLocalAgentFiles(agentsDir)
     if (files === null) {
-      return status(agentsDir, 'error', 'Could not read the Kiro agents directory')
+      return this.getStatus()
     }
     const isManaged = getKiroManagedCommandMatcher()
     for (const file of files) {

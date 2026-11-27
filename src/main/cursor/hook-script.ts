@@ -1,21 +1,18 @@
-import {
-  buildWindowsAgentHookPostCommand,
-  wrapPosixHookCommand,
-  buildWindowsHookPowerShellCommand,
-  wrapWindowsPowerShellEncodedCommand
-} from '../agent-hooks/installer-utils'
-import { posixCurlCommand } from '../agent-hooks/hook-post-command'
+import { buildWindowsAgentHookPostCommand } from '../agent-hooks/installation/commands/windows-agent-hook-post-command'
+import { wrapPosixHookCommand } from '../agent-hooks/installation/commands/posix-hook-command'
+import { buildWindowsHookPowerShellCommand } from '../agent-hooks/installation/commands/windows-hook-command'
+import { wrapWindowsPowerShellEncodedCommand } from '../agent-hooks/installation/commands/windows-powershell-hook-launcher'
+import { posixCurlCommand } from '../agent-hooks/installation/scripts/hook-post-command'
 import {
   buildPosixHookPayloadCapture,
   buildPosixHookSpoolLines,
-  buildWindowsHookEnvironmentGuardLines,
-  buildWindowsHookStdinDrainEpilogue
-} from '../agent-hooks/hook-stdin-contract'
+  buildWindowsHookEnvironmentGuardLines
+} from '../agent-hooks/installation/scripts/hook-stdin-contract'
 import {
   buildPosixGrokReplayGuardLines,
   buildWindowsGrokReplayGuardLines
-} from '../agent-hooks/grok-replay-guard'
-import { quoteStartupArg } from '../../shared/tui-agent-startup-shell'
+} from '../agent-hooks/installation/scripts/grok-replay-guard'
+import { quoteStartupArg } from '../../shared/agent-launch/startup/tui-agent-startup-shell'
 import { getCursorHookResponse, type CursorEvent } from './hook-events'
 
 const CURSOR_HOOK_RESPONSE_ENV = 'ORCA_CURSOR_HOOK_RESPONSE'
@@ -59,7 +56,6 @@ export function getManagedScript(target: 'local' | 'posix' = 'local'): string {
       ...buildWindowsGrokReplayGuardLines(),
       buildWindowsAgentHookPostCommand('cursor'),
       'exit /b 0',
-      ...buildWindowsHookStdinDrainEpilogue(),
       ''
     ].join('\r\n')
   }

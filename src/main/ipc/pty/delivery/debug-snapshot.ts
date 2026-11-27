@@ -1,14 +1,14 @@
-import { getAppEnvironment } from '../../../../shared/app-environment'
+import { getAppEnvironment } from '../../../../shared/app-lifecycle/app-environment'
 import {
   type PtyMainDeliveryDiagnostics,
   type PtyPerPtyDeliveryDiagnostics,
   redactPtyIdForDiagnostics
-} from '../../../../shared/pty-delivery-diagnostics'
+} from '../../../../shared/terminal/pty/diagnostics/pty-delivery-diagnostics'
 import {
   getHiddenRendererPtyDeliveryDebug,
   getHiddenRendererPtyIds,
   isHiddenRendererPty
-} from '../../pty-hidden-delivery-gate'
+} from './pty-hidden-delivery-gate'
 import {
   lastPowerResumeAtMs,
   lastPowerSuspendAtMs,

@@ -1,13 +1,6 @@
-/**
- * Can this relay-hosted SSH target's state be exported to a managed orcad?
- *
- * Unlike claiming an empty target, export carries the target's repositories, folder
- * workspaces and the dormant state the manifest can represent, so those drain rather than block.
- * What blocks is what cannot move: another owner, live terminal leases, and dependent state the
- * manifest cannot carry. Read-only: building the manifest here exports nothing.
- */
-import { isLiveSshPtyLease } from '../../../shared/ssh-types'
-import type { Store } from '../../persistence'
+/** Read-only export preflight: catalog rows and representable dormant state can migrate; ownership, live leases and untransferred dependencies block. */
+import { isLiveSshPtyLease } from '../../../shared/remote-runtime/ssh/ssh-types'
+import type { Store } from '../../persistence/loading-store/store'
 import type {
   OrcadMigrationBlocker,
   OrcadMigrationPreflight
@@ -15,7 +8,7 @@ import type {
 import {
   createOrcadMigrationManifest,
   type OrcadMigrationExportStore
-} from '../orcad-migration-manifest-export'
+} from '../../persistence/migrating-orcad-catalog/source/catalog/orcad-migration-manifest-export'
 import {
   collectTargetCatalogBlockers,
   resolveOrcadPreflightTarget
@@ -24,7 +17,7 @@ import { collectUntransferredDependentBlockers } from './ssh-target-orcad-depend
 import {
   preservesOrcadMigrationBridgedPanes,
   type OrcadMigrationPaneLeasePredicate
-} from '../orcad-migration-bridged-panes'
+} from '../migration-source/orcad-migration-bridged-panes'
 
 export type OrcadMigrationPreflightStore = OrcadMigrationExportStore &
   Pick<
@@ -76,7 +69,7 @@ export function preflightOrcadMigrationExport(
   }
 }
 
-/** Whether a confirmed "Move anyway" would export: what it can't leave (desktop drafts) still refuses. */
+/** Confirmed Move anyway can leave saved state, but desktop drafts that cannot be left still block. */
 export function leaveBehindClearsOrcadMigrationBlockers(
   store: OrcadMigrationPreflightStore & Pick<Store, 'createOrcadMigrationLeaveBehindView'>,
   targetId: string,
@@ -118,7 +111,6 @@ export function onlyLeavableOrcadMigrationBlockers(
   )
 }
 
-// Exported catalog rows and saved port forwards (which stay with the source) do not block.
 export function isBlockingOrcadMigrationBlocker(blocker: OrcadMigrationBlocker): boolean {
   return (
     blocker.category !== 'drainable-static-state' &&

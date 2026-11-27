@@ -3,12 +3,15 @@ import {
   admitLegacyAgentStatus,
   movePaneCacheState
 } from '../../../shared/agent-hook-listener/listener-state'
-import { AGENT_STATUS_2A_CURRENT_PRODUCER_MODE } from '../../../shared/agent-status-legacy-adapter'
-import { canRegisterPaneKeyAlias, isOpaqueRemintedPaneKey } from '../../../shared/pane-key-alias'
-import { parsePaneKey } from '../../../shared/stable-pane-id'
+import { AGENT_STATUS_2A_CURRENT_PRODUCER_MODE } from '../../../shared/agent-status/transport/agent-status-legacy-adapter'
+import {
+  canRegisterPaneKeyAlias,
+  isOpaqueRemintedPaneKey
+} from '../../../shared/workspace-layout/pane-key-alias'
+import { parsePaneKey } from '../../../shared/workspace-layout/stable-pane-id'
 import { PANE_KEY_ALIASES_MAX } from './server-constants'
 import type { EnrichedAgentHookEventPayload, PaneKeyAliasPersistenceListener } from './server-types'
-import type { LegacyPaneKeyAliasEntry } from '../../../shared/persisted-state-types'
+import type { LegacyPaneKeyAliasEntry } from '../../../shared/orca-profiles/persisted-state-types'
 import { isValidPaneKey } from './server-status-identity'
 import { AgentHookServerAuthorityEvidence } from './server-authority-evidence'
 
@@ -134,6 +137,19 @@ export abstract class AgentHookServerAuthorityAliases extends AgentHookServerAut
     if (normalizedPtyId) {
       this.notifyPaneKeyAliasPersistenceListener()
     }
+  }
+
+  /** Undoes the move `ptyId` made out of `physicalPaneKey`: its status and later posts land there again. */
+  returnPaneAuthority(physicalPaneKey: string, ptyId: string): void {
+    const alias = this.legacyPaneKeyAliases.get(physicalPaneKey)
+    if (alias?.ptyId !== ptyId) {
+      return
+    }
+    if (alias.stablePaneKey !== physicalPaneKey) {
+      this.transferPaneAuthority(alias.stablePaneKey, physicalPaneKey, ptyId)
+    }
+    this.legacyPaneKeyAliases.delete(physicalPaneKey)
+    this.notifyPaneKeyAliasPersistenceListener()
   }
 
   transferPaneAuthority(

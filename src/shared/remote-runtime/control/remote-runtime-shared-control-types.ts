@@ -1,11 +1,16 @@
-import type { RuntimeRpcResponse } from '../../runtime-rpc-envelope'
-import type { RemoteRuntimeClientError } from '../../remote-runtime-client-error'
+import type { RuntimeRpcResponse } from '../rpc/runtime-rpc-envelope'
+import type { RemoteRuntimeClientError } from '../remote-runtime-client-error'
 import type { RemoteRuntimePreparedRequest } from '../requests/remote-runtime-prepared-request-admission'
-import type { RuntimeCapability } from '../../protocol-version'
+import type { RuntimeCapability } from '../protocol/protocol-version'
 import type {
   RemoteRuntimeSocketDeathCause,
   RemoteRuntimeSocketLivenessOptions
-} from '../../remote-runtime-socket-liveness'
+} from '../remote-runtime-socket-liveness'
+import type { RemoteRuntimeSealedFrame } from '../remote-runtime-sealed-frame'
+import type { SharedControlAppHeartbeatOptions } from './remote-runtime-shared-control-app-heartbeat'
+
+/** Text, or binary that may carry compressed text; nothing else reaches the shared control socket. */
+export type SharedControlFrame = RemoteRuntimeSealedFrame
 
 export type SharedControlConnectionState =
   | 'closed'
@@ -19,11 +24,7 @@ export type SharedControlPendingRequest<TResult> = {
   reject: (error: Error) => void
   timeout: ReturnType<typeof setTimeout>
   preparedRequest?: RemoteRuntimePreparedRequest | null
-  // Why: keepalives on the shared socket are armed for an unrelated long-poll,
-  // not this request. Only requests that opt in (long-polls issued via the
-  // short-RPC path) may have their deadline refreshed by a keepalive; ordinary
-  // short RPCs keep an absolute deadline so a stuck server call still times
-  // out, tears the socket down, and reconnects/replays as designed.
+  // Only opted-in long-polls refresh on unrelated keepalives; short RPCs time out independently of socket liveness.
   refreshTimeoutOnKeepalive: boolean
 }
 
@@ -44,14 +45,9 @@ export type SharedControlLogicalSubscription<TResult = unknown> = {
   closed: boolean
   closeAfterReady: boolean
   remoteSubscriptionId: string | null
-  // Why: set while awaiting the first response after a reconnect replay; that
-  // response is the authoritative re-emitted snapshot and gets tagged so
-  // monotonic freshness gates don't drop it (#7718).
+  // Tag the first replay response as an authoritative snapshot so freshness gates accept it (#7718).
   pendingReplayTag?: boolean
-  // Why: true from the moment a reconnect replay clears remoteSubscriptionId
-  // until the resubscribe response arrives. A close() during this window has no
-  // id to unsubscribe by yet, so it must defer instead of finishing locally —
-  // otherwise the resubscribe the server is about to accept leaks.
+  // While resubscribe awaits its ID, close must defer cleanup or leak the server’s new subscription.
   awaitingResubscribe?: boolean
 }
 
@@ -78,6 +74,8 @@ export type RemoteRuntimeSharedConnectionDiagnostics = {
   lastCloseCause?: SharedControlSocketCloseCause
   /** Last keepalive ping round trip; absent until one is measured. Not a publish trigger. */
   lastRttMs?: number
+  /** When the runtime first missed an app-level heartbeat; kept across reconnects until it answers again. */
+  unresponsiveSince?: number
 }
 
 export type SharedControlSocketCloseCause =
@@ -85,6 +83,9 @@ export type SharedControlSocketCloseCause =
   | 'socket_close'
   | 'socket_error'
   | 'protocol_error'
+  | 'ready_timeout'
+  /** The socket stayed open but the runtime missed an app-level heartbeat. */
+  | 'runtime_unresponsive'
   | 'local'
 
 export type SharedControlSocketClosed = (
@@ -119,17 +120,26 @@ export type RemoteRuntimeSharedControlConnectionOptions = {
   clientCapabilities?: readonly RuntimeCapability[]
   isManuallyDisconnected?: () => boolean
   isCapabilityPaused?: () => boolean
+  /** Orca's own idle stop holds this server down: no socket is opened or retried until cleared. */
+  isIdleStopped?: () => boolean
+  /** The server closed this socket saying it stopped idle, before the close is handled. */
+  onIdleStop?: () => void
+  /** The server's VM is asleep: no socket is opened or retried until its workspace wakes it. */
+  prepareSleepCheck?: () => (() => boolean) | Promise<() => boolean>
   /** Publishes local transport diagnostics after a meaningful state transition. */
   onDiagnosticsChanged?: (diagnostics: RemoteRuntimeSharedConnectionDiagnostics) => void
   /** Any inbound frame, ping or pong on the current socket. */
   onAnswered?: () => void
+  /** Each socket that becomes ready, including after every reconnect. */
+  onReady?: () => void
   reconnectStableResetMs?: number
+  /** OPEN→ready bound before the socket is retired; defaults to 30s. */
+  readyDeadlineMs?: number
   /** Every socket close with its cause, e.g. for the diagnostics trace. */
   onSocketClosed?: (record: SharedControlSocketCloseRecord) => void
   liveness?: RemoteRuntimeSocketLivenessOptions
-  /**
-   * The server refused this socket's token. Null leaves the usual reconnect; a promise means the
-   * caller owns recovery and says whether this connection should then retry or stay closed.
-   */
-  onAuthenticationRejected?: () => Promise<'retry' | 'stop'> | null
+  /** Opt-in app-level heartbeat on ready sockets; absent keeps transport-only liveness. */
+  appHeartbeat?: SharedControlAppHeartbeatOptions
+  /** Null uses normal retry; a promise owns token recovery and decides whether this connection retries. */
+  onAuthenticationRejected?: () => Promise<'retry' | 'stop' | null> | null
 }

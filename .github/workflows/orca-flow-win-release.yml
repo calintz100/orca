@@ -102,7 +102,7 @@ jobs:
           max_attempts: 2
           retry_wait_seconds: 30
           shell: pwsh
-          command: node config/scripts/ensure-native-runtime.mjs --runtime=electron; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm exec electron-builder --config config/electron-builder.config.cjs --win --publish never
+          command: node config/scripts/native-build/node-addons/ensure-native-runtime.mjs --runtime=electron; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm exec electron-builder --config config/electron-builder.config.cjs --win --publish never
 
       - name: Attach installer to release
         shell: bash

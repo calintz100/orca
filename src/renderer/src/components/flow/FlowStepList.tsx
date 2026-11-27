@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/class-names'
 import type { FlowStep } from '../../../../shared/flow-log-types'
 
 /** Vertical step flow: done (filled), doing (pulsing), todo (hollow), joined by a rail. */

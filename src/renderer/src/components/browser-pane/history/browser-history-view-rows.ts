@@ -1,10 +1,10 @@
-import type { BrowserHistoryEntry } from '../../../../../shared/browser-workspace-types'
-import type { WorkspaceDocHistoryEntry } from '../../../../../shared/workspace-doc-history'
-import { startOfLocalDay } from '../../../../../shared/automation-cron-occurrence'
+import type { BrowserHistoryEntry } from '../../../../../shared/browser/workspaces/browser-workspace-types'
+import type { WorkspaceDocHistoryEntry } from '../../../../../shared/workspace-session/workspace-doc-history'
+import { startOfLocalDay } from '../../../../../shared/automations/scheduling/automation-cron-occurrence'
 import {
   listBrowserHistoryRecents,
   type BrowserAddressBarSuggestion
-} from '../assemble-chrome/browser-address-bar-suggestions'
+} from '../assemble-chrome/address-bar/browser-address-bar-suggestions'
 
 export type BrowserHistoryClearRange = 'hour' | 'today' | 'all'
 
@@ -21,10 +21,7 @@ export function browserHistoryRowKey(row: BrowserAddressBarSuggestion): string {
     : `url:${row.normalizedUrl ?? row.url}`
 }
 
-/**
- * Pages and documents as one list, newest first. Like Chrome's history search, every word must
- * appear in the title or the address, in any order.
- */
+/** Combine page/document visits newest first; require every query word in title or address in any order. */
 export function listBrowserHistoryRows(
   browserUrlHistory: readonly BrowserHistoryEntry[],
   workspaceDocHistory: readonly WorkspaceDocHistoryEntry[],

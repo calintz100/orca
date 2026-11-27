@@ -2,7 +2,7 @@ import { Waypoints } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
-import { isTerminalLeafId, makePaneKey, parsePaneKey } from '../../../../shared/stable-pane-id'
+import { isTerminalLeafId, makePaneKey, parsePaneKey } from '../../../../shared/workspace-layout/stable-pane-id'
 import { FlowPaneCard } from './FlowPaneCard'
 import { useFlowPaneSummary } from './use-flow-log'
 

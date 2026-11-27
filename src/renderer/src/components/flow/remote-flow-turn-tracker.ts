@@ -3,7 +3,7 @@
  * orcad sends its agent hooks to that host's hook server, so main's flow log never sees them;
  * the renderer still gets the pane's status rows and forwards what they show.
  */
-import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
+import type { AgentStatusEntry } from '../../../../shared/agent-status/contracts/agent-status-types'
 import type { FlowRemoteTurnEvent } from '../../../../shared/flow-log-types'
 
 type PaneTrack = { turnKey: string; tool?: string; ended: boolean }
@@ -23,7 +23,7 @@ function turnAssistant(entry: AgentStatusEntry): string {
 
 export type RemoteFlowTurnTracker = {
   /** The turn steps these rows add since the previous call. */
-  takeEvents: (entries: Record<string, AgentStatusEntry>, now: number) => FlowRemoteTurnEvent[]
+  takeEvents: (entries: ReadonlyMap<string, AgentStatusEntry>, now: number) => FlowRemoteTurnEvent[]
 }
 
 export function createRemoteFlowTurnTracker(): RemoteFlowTurnTracker {
@@ -83,12 +83,12 @@ export function createRemoteFlowTurnTracker(): RemoteFlowTurnTracker {
       const out: FlowRemoteTurnEvent[] = []
       // Deleting the current key while iterating a Map is safe.
       for (const paneKey of tracks.keys()) {
-        const entry = entries[paneKey]
+        const entry = entries.get(paneKey)
         if (!entry || !isRemote(entry)) {
           tracks.delete(paneKey)
         }
       }
-      for (const [paneKey, entry] of Object.entries(entries)) {
+      for (const [paneKey, entry] of entries) {
         if (isRemote(entry)) {
           readEntry(paneKey, entry, now, out)
         }

@@ -1,14 +1,11 @@
-import { posixCurlCommand } from '../agent-hooks/hook-post-command'
-import {
-  buildWindowsAgentHookPostCommand,
-  getSharedManagedScriptPath
-} from '../agent-hooks/installer-utils'
+import { posixCurlCommand } from '../agent-hooks/installation/scripts/hook-post-command'
+import { buildWindowsAgentHookPostCommand } from '../agent-hooks/installation/commands/windows-agent-hook-post-command'
+import { getSharedManagedScriptPath } from '../agent-hooks/installation/scripts/managed-hook-script-path'
 import {
   buildPosixHookPayloadCapture,
   buildPosixHookSpoolLines,
-  buildWindowsHookEnvironmentGuardLines,
-  buildWindowsHookStdinDrainEpilogue
-} from '../agent-hooks/hook-stdin-contract'
+  buildWindowsHookEnvironmentGuardLines
+} from '../agent-hooks/installation/scripts/hook-stdin-contract'
 
 export function getManagedScriptFileName(): string {
   return process.platform === 'win32' ? 'copilot-hook.cmd' : 'copilot-hook.sh'
@@ -34,7 +31,6 @@ export function getManagedScript(target: 'local' | 'posix' = 'local'): string {
         '  --data-urlencode "hookEventName=%ORCA_COPILOT_HOOK_EVENT%" ^'
       ]),
       'exit /b 0',
-      ...buildWindowsHookStdinDrainEpilogue(),
       ''
     ].join('\r\n')
   }

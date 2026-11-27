@@ -1,9 +1,9 @@
 import os from 'node:os'
 import type { FlowStep, FlowTurn } from '../../shared/flow-log-types'
-import type { CommitMessageAgentEnvironmentResolvers } from '../text-generation/commit-message-agent-environment'
-import { prepareLocalCommitMessageAgentEnv } from '../text-generation/commit-message-agent-environment'
+import type { CommitMessageAgentEnvironmentResolvers } from '../text-generation/execution/commit-message-agent-environment'
+import { prepareLocalCommitMessageAgentEnv } from '../text-generation/execution/commit-message-agent-environment'
 import { runGenerationRequest } from '../text-generation/agent-generation-request'
-import { spawnSourceControlAgent } from '../text-generation/source-control-agent-launch'
+import { spawnSourceControlAgent } from '../text-generation/execution/source-control-agent-launch'
 
 export type FlowTurnSummary = {
   title: string
@@ -109,7 +109,6 @@ export async function summarizeFlowTurn(
       params: { agentId: 'claude', model: 'haiku', agentArgs: '--no-session-persistence' },
       prompt: buildPrompt(turn, prev),
       target: { kind: 'local', cwd: os.tmpdir(), env: env.env },
-      emptyResultName: 'flow summary',
       operation: 'flow-summary',
       spawnAgent: spawnSourceControlAgent
     })

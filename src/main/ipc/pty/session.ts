@@ -1,22 +1,22 @@
 import type { BrowserWindow, WebContents } from 'electron'
 import type { OrcaRuntimeService } from '../../runtime/orca-runtime'
-import type { Store } from '../../persistence'
-import type { GlobalSettings } from '../../../shared/global-settings-types'
-import type { IPtyProvider } from '../../providers/pty-provider-contract'
-import type { PtyModelRestoreReason } from '../../../shared/pty-model-restore-marker'
+import type { Store } from '../../persistence/loading-store/store'
+import type { GlobalSettings } from '../../../shared/settings/global-settings-types'
+import type { IPtyProvider } from '../../providers/pty/provider-contract'
+import type { PtyModelRestoreReason } from '../../../shared/terminal/replay/pty-model-restore-marker'
 import type {
   PtyDeliveryWriteOff,
   PtyRendererDeliveryStateReport
-} from '../../../shared/pty-renderer-delivery-health'
+} from '../../../shared/terminal/pty/diagnostics/pty-renderer-delivery-health'
 import type { PtyRendererDeliveryDebugSnapshot } from './delivery/debug'
-import { PtyProducerFlowController } from '../pty-producer-flow-control'
-import { PtyPendingDataDrainQueue } from '../pty-pending-data-drain-queue'
-import type { PendingPtyData } from '../pty-pending-data-drain-contract'
+import { PtyProducerFlowController } from './delivery/pty-producer-flow-control'
+import { PtyPendingDataDrainQueue } from './delivery/pty-pending-data-drain-queue'
+import type { PendingPtyData } from './delivery/pty-pending-data-drain-contract'
 import { activeRendererPtys } from './delivery/visibility-state'
 import {
   isHiddenPtyDeliveryGateEnabled,
   shouldDropHiddenRendererPtyData
-} from '../pty-hidden-delivery-gate'
+} from './delivery/pty-hidden-delivery-gate'
 import type { CodexHomePtySpawnedLifecycleArgs, PrepareCodexSessionResume } from './host-env/types'
 import { tryGetProviderForPty } from './provider/registry'
 
@@ -28,6 +28,8 @@ export type PtyDataPayload = {
   transformed?: boolean
   background?: boolean
   droppedOutput?: boolean
+  /** The stream is inside an escape (or at an unknown point) where `data` begins, so it cannot resume a stream after a gap. */
+  midEscape?: true | 'unknown'
 }
 
 export type RendererPtyDeliveryAccounting = {

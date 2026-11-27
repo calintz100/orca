@@ -1,16 +1,19 @@
-import type { AgentSessionOwnerBinding } from '../../../../shared/agent-session-host-authority'
-import { agentSessionOwnerBindingsEqual } from '../../../../shared/claimed-agent-pty-owner'
-import { addNodePtyRecoveryHint } from '../../../daemon/node-pty-error-hints'
-import type { Store } from '../../../persistence'
-import type { IPtyProvider } from '../../../providers/pty-provider-contract'
+import type { AgentSessionOwnerBinding } from '../../../../shared/agent-session/lifecycle/operations/agent-session-host-authority'
+import { agentSessionOwnerBindingsEqual } from '../../../../shared/agent-session/lifecycle/leases/claimed-agent-pty-owner-snapshot'
+import { addNodePtyRecoveryHint } from '../../../daemon/pty-subprocess/node-pty-error-hints'
+import type { Store } from '../../../persistence/loading-store/store'
+import type { IPtyProvider } from '../../../providers/pty/provider-contract'
 import { isCurrentPtyExit, ptyIncarnationById, ptyOwnership } from './ownership-state'
-import { getRelayPtyId } from './registry'
+import { getRelayPtyId, tryGetProviderForPty } from './registry'
 import {
   KEEP_HISTORY_STOP_POLL_MS,
   KEEP_HISTORY_STOP_SETTLE_MS
 } from '../delivery/visibility-state'
 import { clearProviderPtyState } from './state-cleanup'
-import { PtyExitProof, type PtyRetirementEvidence } from '../../../pty-exit-proof'
+import {
+  PtyExitProof,
+  type PtyRetirementEvidence
+} from '../../../pty/process-retirement/pty-exit-proof'
 
 export function normalizeNodePtySpawnError(err: unknown): Error {
   const rawMessage = err instanceof Error ? err.message : String(err)
@@ -119,11 +122,22 @@ export function finishPtyShutdown(
     return null
   }
   const incarnationId = ptyIncarnationById.get(id)
-  clearProviderPtyState(id)
+  clearProviderPtyState(id, evidence instanceof PtyExitProof ? { exitProven: true } : {})
   if (connectionId) {
     // Keeps any relay-era undelivered stop on the lease: only host evidence may retire it.
     store?.markSshRemotePtyLease(connectionId, getRelayPtyId(connectionId, id), evidence)
   }
   ptyOwnership.delete(id)
   return incarnationId
+}
+
+export async function isRegisteredAgentSessionOwnerLive(
+  owner: AgentSessionOwnerBinding
+): Promise<boolean> {
+  const ownerProvider = tryGetProviderForPty(owner.ptyId)
+  if (!ownerProvider) {
+    // Why: an owner on a host this process cannot reach is unknown, never absent.
+    throw new Error('execution_owner_unavailable')
+  }
+  return await isProviderAgentSessionOwnerLive(ownerProvider, owner)
 }

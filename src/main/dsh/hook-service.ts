@@ -2,36 +2,42 @@ import { mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { SFTPWrapper } from 'ssh2'
 
-import type { AgentHookInstallState, AgentHookInstallStatus } from '../../shared/agent-hook-types'
-import { isDefinitiveAbsence } from '../../shared/definitive-filesystem-absence'
-import {
-  buildWindowsAgentHookCurlPostCommand,
-  writeHooksJson,
-  writeManagedScript
-} from '../agent-hooks/installer-utils'
-import { refreshManagedScriptIfPresent } from '../agent-hooks/managed-hook-script-refresh'
+import type {
+  AgentHookInstallState,
+  AgentHookInstallStatus
+} from '../../shared/agent-hook-listener/configuration/agent-hook-types'
+import { isDefinitiveAbsence } from '../../shared/errors/definitive-filesystem-absence'
+import { buildWindowsAgentHookCurlPostCommand } from '../agent-hooks/installation/commands/windows-agent-hook-post-command'
+import { writeHooksJson } from '../agent-hooks/installation/configuration/hooks-json-write'
+import { writeManagedScript } from '../agent-hooks/installation/scripts/managed-hook-script-write'
+import { refreshManagedScriptIfPresent } from '../agent-hooks/installation/scripts/managed-hook-script-refresh'
 import {
   readTextFileRemote,
-  writeManagedScriptRemote,
   writeTextFileRemoteAtomic
-} from '../agent-hooks/installer-utils-remote'
+} from '../agent-hooks/installation/remote/hook-text-files-remote'
+import { writeManagedScriptRemote } from '../agent-hooks/installation/scripts/managed-script-write-remote'
 import {
   buildPosixHookPayloadCapture,
   buildPosixHookSpoolLines,
-  buildWindowsHookEnvironmentGuardLines,
-  buildWindowsHookStdinDrainEpilogue
-} from '../agent-hooks/hook-stdin-contract'
-import { buildPosixAgentHookPostCommand } from '../agent-hooks/hook-post-command'
+  buildWindowsHookEnvironmentGuardLines
+} from '../agent-hooks/installation/scripts/hook-stdin-contract'
+import { buildPosixAgentHookPostCommand } from '../agent-hooks/installation/scripts/hook-post-command'
+import {
+  buildPosixScrubSafeEnvRestoreLines,
+  buildWindowsScrubSafeEnvRestoreLines
+} from '../../shared/agent-hook-listener/transport/agent-hook-scrub-safe-env'
 import {
   applyManagedDshPatch,
   isDshPatchFileUnappendable,
   readManagedDshHooksConfigPath,
   removeManagedDshPatch
 } from './dsh-home-patch'
+import { describeDshProfilesMissingHookPackages } from './dsh-hook-packages'
 import {
   buildDshManagedHooksFile,
   DSH_HOOK_EVENTS,
   getDshConfigPath,
+  getDshHome,
   getDshManagedCommand,
   getDshManagedCommandMatcher,
   getDshManagedHooksPath,
@@ -48,13 +54,11 @@ function getManagedScript(target: 'local' | 'posix' = 'local'): string {
       '@echo off',
       'setlocal',
       // Restore DSH-scrubbed KEY/TOKEN variables before any guard or spool code reads them.
-      'if not defined ORCA_PANE_KEY if defined ORCA_AGENT_PANE set "ORCA_PANE_KEY=%ORCA_AGENT_PANE%"',
-      'if not defined ORCA_AGENT_LAUNCH_TOKEN if defined ORCA_AGENT_LAUNCH set "ORCA_AGENT_LAUNCH_TOKEN=%ORCA_AGENT_LAUNCH%"',
+      ...buildWindowsScrubSafeEnvRestoreLines(),
       'if defined ORCA_AGENT_HOOK_ENDPOINT if exist "%ORCA_AGENT_HOOK_ENDPOINT%" call "%ORCA_AGENT_HOOK_ENDPOINT%" 2>nul',
       ...buildWindowsHookEnvironmentGuardLines(),
       buildWindowsAgentHookCurlPostCommand('dsh'),
       'exit /b 0',
-      ...buildWindowsHookStdinDrainEpilogue(),
       ''
     ].join('\r\n')
   }
@@ -62,9 +66,7 @@ function getManagedScript(target: 'local' | 'posix' = 'local'): string {
   return [
     '#!/bin/sh',
     // DSH scrubs KEY/TOKEN variables; recover canonical names from the aliases set at spawn.
-    ': "${ORCA_PANE_KEY:=${ORCA_AGENT_PANE:-}}"',
-    ': "${ORCA_AGENT_LAUNCH_TOKEN:=${ORCA_AGENT_LAUNCH:-}}"',
-    'export ORCA_PANE_KEY ORCA_AGENT_LAUNCH_TOKEN',
+    ...buildPosixScrubSafeEnvRestoreLines(),
     ...buildPosixHookPayloadCapture(),
     ...buildPosixHookSpoolLines('dsh'),
     // Refresh endpoint credentials for PTYs that outlive an Orca restart.
@@ -147,7 +149,14 @@ function buildStatus(
   )
   const missing = DSH_HOOK_EVENTS.filter((event) => !present.has(event))
   if (missing.length === 0) {
-    return status(configPath, 'installed', null, true)
+    // Orca's files alone do not activate the row: DSH must also load the package it names.
+    const packagesDetail = describeDshProfilesMissingHookPackages(getDshHome())
+    return status(
+      configPath,
+      packagesDetail === null ? 'installed' : 'partial',
+      packagesDetail,
+      true
+    )
   }
   return present.size === 0
     ? status(configPath, 'not_installed', null)

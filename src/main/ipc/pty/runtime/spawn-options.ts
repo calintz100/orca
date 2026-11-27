@@ -1,7 +1,8 @@
-import type { IPtyProvider, PtySpawnResult } from '../../../providers/pty-provider-contract'
-import { LocalPtyProvider } from '../../../providers/local-pty-provider'
-import { makePaneKey, isTerminalLeafId } from '../../../../shared/stable-pane-id'
-import { isValidTerminalTabId } from '../../../../shared/terminal-tab-id'
+import type { IPtyProvider } from '../../../providers/pty/provider-contract'
+import type { PtySpawnResult } from '../../../providers/pty/spawn-result'
+import { LocalPtyProvider } from '../../../providers/local-pty/local-pty-provider'
+import { makePaneKey, isTerminalLeafId } from '../../../../shared/workspace-layout/stable-pane-id'
+import { isValidTerminalTabId } from '../../../../shared/workspace-layout/terminal-surfaces/terminal-tab-id'
 import {
   routesFreshSpawnsToLocalProvider,
   beginPtySpawnForWorktree
@@ -11,8 +12,8 @@ import {
   assemblePtySpawnEnvDeletions,
   assemblePtySpawnLaunchOptions,
   seedPtySpawnSize
-} from '../spawn-options-assembly'
-import type { RuntimePtySpawnState } from './spawn-state'
+} from '../spawn/spawn-options-assembly'
+import { isRuntimeWslBackgroundStart, type RuntimePtySpawnState } from './spawn-state'
 import { prepareAntigravityAccountForLaunch } from '../../../antigravity/native-account-launch'
 
 export async function buildRuntimePtySpawnOptions(
@@ -74,7 +75,7 @@ export async function buildRuntimePtySpawnOptions(
     prevalidatedCwd: ctx.prevalidatedCwd,
     isDaemonHostSpawn: ctx.isDaemonHostSpawn,
     preAdoptedStablePane: ctx.preAdoptedStablePane !== null,
-    isNewSession: ctx.isNewDaemonSession,
+    isNewSession: ctx.ownsNewIncarnation,
     codexRuntime: ctx.codexSelectionTarget.runtime,
     expectedWslDistro: ctx.expectedWslDistro,
     requestedAgentTeamsPath: ctx.requestedAgentTeamsPath,
@@ -84,6 +85,7 @@ export async function buildRuntimePtySpawnOptions(
     sessionId: ctx.sessionId,
     spawnIntent: ctx.preAdoptedStablePane ? undefined : args.spawnIntent,
     historyIsolationEnabled,
+    headlessHost: ctx.deps.runtime?.servesWithoutWindow?.() === true,
     getSettings: ctx.deps.getSettings,
     store: ctx.deps.store,
     claudeAuth: ctx.claudeAuth
@@ -91,17 +93,15 @@ export async function buildRuntimePtySpawnOptions(
   ctx.spawnOptions = launch.spawnOptions
   ctx.env = launch.env
   ctx.launchCommand = launch.launchCommand
-  const seeded = seedPtySpawnSize({
+  ctx.provisionalPtySize = seedPtySpawnSize({
     sessionId: ctx.sessionId,
     sessionAppId: ctx.effectiveSessionAppId,
-    isFreshSessionId: ctx.isNewDaemonSession,
-    // Runtime requests are measured; only cached geometry can outrank them here.
+    isFreshSessionId: ctx.ownsNewIncarnation,
+    // Host requests, including defaults, are intentional; only a live cached grid outranks them.
     requestIsUnmeasured: false,
     cols: args.cols,
     rows: args.rows
   })
-  ctx.hadSessionSizeBeforeAttach = seeded.hadSessionSizeBeforeAttach
-  ctx.sessionSizeBeforeAttach = seeded.sessionSizeBeforeAttach
   if (
     !ctx.preAdoptedStablePane &&
     args.agentSessionEnsure &&
@@ -125,6 +125,12 @@ export async function buildRuntimePtySpawnOptions(
   }
   if (args.signal) {
     ctx.spawnOptions.signal = args.signal
+  }
+  if (isRuntimeWslBackgroundStart(ctx)) {
+    ctx.spawnOptions.wslBackgroundStart = true
+  }
+  if (ctx.wslHoldReadAnchor !== undefined) {
+    ctx.spawnOptions.wslHoldReadAnchor = ctx.wslHoldReadAnchor
   }
   if (
     args.onPtySpawnCommitted &&
@@ -151,10 +157,7 @@ export async function buildRuntimePtySpawnOptions(
   ctx.stablePaneBindingPersisted = false
   ctx.rejectedRegistrationCandidate = null
   ctx.pendingRegistrationPtyId = null
-  // Carry renderer-domain sequence reconciliation into the reply beside proven kitty flags.
-  ctx.reconciledSnapshotSeq = null
-  // Bytes arriving during spawn can postdate proven flags; preserve any negotiation scanned live.
-  ctx.snapshotKittyFlagsCoverReconciledSeq = true
+  ctx.provedSnapshotSeq = undefined
   ctx.preparedProvisionalExecutionContext = false
 
   return null
