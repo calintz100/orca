@@ -1017,8 +1017,8 @@ function findInstalledMacSigningIdentity(keychainFile) {
 
 // Orca Flow: a personal build that installs beside the official Orca (own app id, name,
 // install folder, protocol and userData) and points publishing at the fork. The packaged
-// package.json carries `orcaFlavor: "flow"`, which main reads to pick its profile and to skip
-// the official auto-update feed (src/main/startup/orca-flow-build.ts).
+// package.json carries `orcaFlavor: "flow"`, which main reads to pick its profile and to update
+// from the fork's releases instead of the official feed (src/main/startup/orca-flow-build.ts).
 if (process.env.ORCA_FLOW_BUILD === '1') {
   const config = module.exports
   config.appId = 'com.calintz.orcaflow'
@@ -1026,8 +1026,15 @@ if (process.env.ORCA_FLOW_BUILD === '1') {
   config.protocols = [{ name: 'Orca Flow', schemes: ['orca-flow'] }]
   // Why name too: NSIS derives the per-user install folder (Programs\<name>) from the package
   // name, so keeping 'orca' would install over the official Orca.
-  config.extraMetadata = { ...(config.extraMetadata ?? {}), name: 'orca-flow', orcaFlavor: 'flow' }
-  config.win = { ...config.win, executableName: 'OrcaFlow' }
+  config.extraMetadata = { ...config.extraMetadata, name: 'orca-flow', orcaFlavor: 'flow' }
+  // Unsigned like the dev channels: a SignPath publisherName would make every fork update fail verification.
+  const { publisherName: _signPathPublisher, ...flowSigntoolOptions } = config.win.signtoolOptions
+  config.win = {
+    ...config.win,
+    executableName: 'OrcaFlow',
+    signtoolOptions: flowSigntoolOptions,
+    verifyUpdateCodeSignature: false
+  }
   config.nsis = { ...config.nsis, artifactName: 'orca-flow-windows-setup.${ext}' }
   config.publish = { provider: 'github', owner: 'calintz100', repo: 'orca', releaseType: 'draft' }
 }

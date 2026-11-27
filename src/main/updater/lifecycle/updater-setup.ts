@@ -1,5 +1,5 @@
 import { app, powerMonitor } from 'electron'
-import { isOrcaFlowBuild } from '../../startup/orca-flow-build'
+import { getLatestReleaseDownloadUrl } from '../releases/updater-release-repo'
 import type { BrowserWindow } from 'electron'
 import type { ReleaseBuild, ReleaseChannel } from '../../../shared/updater/release-channel'
 import type { ReleaseBuildListOptions } from '../releases/updater-release-build-cache'
@@ -171,8 +171,7 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
       this.sendErrorStatus(`The server update did not complete: ${serveHandoffFailure}`, true)
     }
 
-    // Why Orca Flow opts out: its feed is the official Orca release, which would replace this build.
-    if (!app.isPackaged || isOrcaFlowBuild()) {
+    if (!app.isPackaged) {
       return
     }
 
@@ -204,10 +203,7 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
 
     // Security: never re-add a verifyUpdateCodeSignature override — a no-op disables electron-updater's built-in Authenticode check and accepts any installer.
     if (this.activeUpdateSource === 'release') {
-      autoUpdater.setFeedURL({
-        provider: 'generic',
-        url: 'https://github.com/stablyai/orca/releases/latest/download'
-      })
+      autoUpdater.setFeedURL({ provider: 'generic', url: getLatestReleaseDownloadUrl() })
     }
     if (this.autoUpdaterInitialized) {
       return
